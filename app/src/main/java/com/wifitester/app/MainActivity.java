@@ -1,4 +1,4 @@
-package com.example.wifitester;
+package com.flutteride.codweva;
 
 import android.Manifest;
 import android.content.BroadcastReceiver;
@@ -6,16 +6,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
-import android.os.Handler;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -29,198 +26,182 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
-    // عناصر الواجهة
-    private TextView tvStatus, tvSelectedWifi, tvCurrentGuess;
-    private Button btnScan, btnStartAttack;
-    private ListView wifiListView;
-
-    // متغيرات الواي فاي والشبكات
     private WifiManager wifiManager;
-    private ArrayList<String> wifiListNames = new ArrayList<>();
-    private List<ScanResult> wifiScanResults;
-    private ArrayAdapter<String> adapter;
-    private String selectedTargetSSID = "";
+    private ListView listView;
+    private TextView tvStatus, tvCurrentGuess;
+    private Button btnScan, btnStartAttack;
 
-    // متغيرات قائمة التخمينات (Wordlist)
-    private ArrayList<String> customWordlist = new ArrayList<>();
+    private ArrayList<String> wifiListNames;
+    private ArrayAdapter<String> adapter;
+    private List<ScanResult> scanResults;
+    private ArrayList<String> customWordlist;
+
+    private String selectedTargetSSID = "";
     private int currentGuessIndex = 0;
     private boolean isAttacking = false;
-    private Handler handler = new Handler();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
 
-        // بناء الواجهة برمجياً بشكل كامل لتجنب أخطاء ملفات الـ XML
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(30, 30, 30, 30);
+        listView = findViewById(R.id.listView);
+        tvStatus = findViewById(R.id.tvStatus);
+        tvCurrentGuess = findViewById(R.id.tvCurrentGuess);
+        btnScan = findViewById(R.id.btnScan);
+        btnStartAttack = findViewById(R.id.btnStartAttack);
 
-        tvStatus = new TextView(this);
-        tvStatus.setText("الحالة: جاهز. اضغط على بحث لإيجاد الشبكات");
-        tvStatus.setTextSize(15);
-        layout.addView(tvStatus);
-
-        btnScan = new Button(this);
-        btnScan.setText("بحث عن شبكات الواي فاي");
-        layout.addView(btnScan);
-
-        wifiListView = new ListView(this);
-        LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 350);
-        wifiListView.setLayoutParams(listParams);
-        layout.addView(wifiListView);
-
-        tvSelectedWifi = new TextView(this);
-        tvSelectedWifi.setText("الشبكة المحددة: لم يتم الاختيار");
-        tvSelectedWifi.setTextSize(16);
-        tvSelectedWifi.setTextColor(Color.RED);
-        layout.addView(tvSelectedWifi);
-
-        tvCurrentGuess = new TextView(this);
-        tvCurrentGuess.setText("التخمين الحالي: -");
-        tvCurrentGuess.setTextSize(16);
-        tvCurrentGuess.setTextColor(Color.BLUE);
-        layout.addView(tvCurrentGuess);
-
-        btnStartAttack = new Button(this);
-        btnStartAttack.setText("ابدأ التخمين على الشبكة");
-        btnStartAttack.setEnabled(false); // معطل حتى يتم اختيار شبكة
-        layout.addView(btnStartAttack);
-
-        setContentView(layout);
-
-        // تهيئة النظام والصلاحيات
-        wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        checkPermissions();
-
-        // إعداد قائمة الشبكات
+        wifiListNames = new ArrayList<>();
+        scanResults = new ArrayList<>();
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, wifiListNames);
-        wifiListView.setAdapter(adapter);
+        listView.setAdapter(adapter);
 
-        // 1. توليد قائمة التخمينات المخصصة التي طلبتها مسبقاً
-        generateWordlistPatterns();
+        // تجهيز كل التخمينات التي طلبتها بالترتيب
+        setupWordlist();
 
-        // 2. زر البحث عن الشبكات
-        btnScan.setOnClickListener(v -> scanWifiNetworks());
-
-        // 3. اختيار شبكة من القائمة عند الضغط عليها
-        wifiListView.setOnItemClickListener((parent, view, position, id) -> {
-            if (wifiScanResults != null && position < wifiScanResults.size()) {
-                // استخراج اسم الشبكة فقط بدون الـ BSSID لتسهيل التطبيق
-                String fullItem = wifiListNames.get(position);
-                selectedTargetSSID = wifiScanResults.get(position).SSID;
-                tvSelectedWifi.setText("الشبكة المحددة: " + selectedTargetSSID);
-                tvSelectedWifi.setTextColor(Color.parseColor("#008000"));
-                btnStartAttack.setEnabled(true);
-                Toast.makeText(MainActivity.this, "تم اختيار الشبكة بنجاح", Toast.LENGTH_SHORT).show();
+        btnScan.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                checkPermissionsAndScan();
             }
         });
 
-        // 4. زر بدء عملية الفحص والتسلسل
-        btnStartAttack.setOnClickListener(v -> {
-            if (!selectedTargetSSID.isEmpty() && !isAttacking) {
-                currentGuessIndex = 0;
-                isAttacking = true;
-                btnStartAttack.setText("جاري الفحص...");
-                btnStartAttack.setEnabled(false);
-                startGuessingLoop();
+        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                if (scanResults != null && position < scanResults.size()) {
+                    selectedTargetSSID = scanResults.get(position).SSID;
+                    tvStatus.setText("تم اختيار الشبكة: " + selectedTargetSSID);
+                    btnStartAttack.setEnabled(true);
+                }
+            }
+        });
+
+        btnStartAttack.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (selectedTargetSSID.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "الرجاء اختيار شبكة أولاً", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                startAttackingLoop();
             }
         });
     }
 
-    // التحقق من صلاحيات الموقع (إلزامي لأندرويد للبحث عن الواي فاي)
-    private void checkPermissions() {
+    private void setupWordlist() {
+        customWordlist = new ArrayList<>();
+        
+        // إضافـة كافة التخمينات المطلوبة ورا بعضها
+        customWordlist.add("10001000");
+        customWordlist.add("20002000");
+        customWordlist.add("30003000");
+        customWordlist.add("40004000");
+        customWordlist.add("50005000");
+        customWordlist.add("60006000");
+        customWordlist.add("70007000");
+        customWordlist.add("80008000");
+        customWordlist.add("90009000");
+        customWordlist.add("90008000");
+        customWordlist.add("80007000");
+        customWordlist.add("70006000");
+        customWordlist.add("60005000");
+        customWordlist.add("50004000");
+        customWordlist.add("40003000");
+        customWordlist.add("30002000");
+        customWordlist.add("20001000");
+        customWordlist.add("10003000");
+        customWordlist.add("20004000");
+        customWordlist.add("30005000");
+        customWordlist.add("40006000");
+        customWordlist.add("50007000");
+        customWordlist.add("60008000");
+        customWordlist.add("70009000");
+        customWordlist.add("90007000");
+        customWordlist.add("80006000");
+        customWordlist.add("70005000");
+        customWordlist.add("60004000");
+        customWordlist.add("50003000");
+        customWordlist.add("40002000");
+        customWordlist.add("30001000");
+        customWordlist.add("100200300");
+    }
+
+    private void checkPermissionsAndScan() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+        } else {
+            scanWifiNetworks();
         }
     }
 
-    // دالة البحث عن الشبكات المحيطة
     private void scanWifiNetworks() {
+        wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         if (!wifiManager.isWifiEnabled()) {
             wifiManager.setWifiEnabled(true);
         }
 
-        tvStatus.setText("جاري مسح الشبكات القريبة...");
         registerReceiver(wifiScanReceiver, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
         boolean success = wifiManager.startScan();
-        if (!success) {
-            getWifiListResults();
+        if (success) {
+            Toast.makeText(this, "جاري البحث عن الشبكات...", Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, "فشل بدء البحث", Toast.LENGTH_SHORT).show();
         }
     }
 
     private final BroadcastReceiver wifiScanReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context c, Intent intent) {
-            try {
-                unregisterReceiver(this);
-            } catch (Exception e) {
-                // تجنب الاستثناء في حال تم إلغاء التسجيل مسبقاً
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                return;
             }
-            getWifiListResults();
-        }
-    };
-
-    private void getWifiListResults() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            wifiScanResults = wifiManager.getScanResults();
+            scanResults = wifiManager.getScanResults();
             wifiListNames.clear();
-
-            for (ScanResult result : wifiScanResults) {
+            for (ScanResult result : scanResults) {
                 if (result.SSID != null && !result.SSID.isEmpty()) {
                     wifiListNames.add(result.SSID);
                 }
             }
             adapter.notifyDataSetChanged();
-            tvStatus.setText("تم العثور على " + wifiListNames.size() + " شبكة متاحة.");
-        }
-    }
-
-    // توليد الأنماط المطلوبة (10002000، العكس، والزوجي بالفردي)
-    private void generateWordlistPatterns() {
-        customWordlist.clear();
-
-        // النمط الأول والتصاعدي (مثل 10001000 إلى 90009000)
-        for (int i = 1; i <= 9; i++) {
-            for (int j = 1; j <= 9; j++) {
-                customWordlist.add(i + "000" + j + "000");
+            try {
+                unregisterReceiver(this);
+            } catch (Exception e) {
+                // تجنب أي خطأ في إلغاء التسجيل
             }
         }
+    };
 
-        // النمط التنازلية والعكسية (مثل 90008000 إلى 20001000)
-        for (int i = 9; i >= 2; i--) {
-            customWordlist.add(i + "000" + (i - 1) + "000");
-        }
+    private void startAttackingLoop() {
+        isAttacking = true;
+        currentGuessIndex = 0;
+        btnStartAttack.setEnabled(false);
+        tvStatus.setText("جاري تجربة التخمينات على: " + selectedTargetSSID);
 
-        // أنماط إضافية مركبة (زوجي بفردي وغيرها)
-        customWordlist.add("10003000");
-        customWordlist.add("30001000");
-        customWordlist.add("20004000");
-        customWordlist.add("40002000");
-        customWordlist.add("50004000");
-        customWordlist.add("40005000");
+        runNextGuess();
     }
 
-    // حلقة التخمين والتسلسل على الشبكة المستهدفة
-    private void startGuessingLoop() {
-        if (currentGuessIndex >= customWordlist.size()) {
-            tvStatus.setText("انتهت القائمة بالكامل!");
-            tvCurrentGuess.setText("التخمين الحالي: انتهى");
-            btnStartAttack.setText("ابدأ التخمين على الشبكة");
+    private void runNextGuess() {
+        if (!isAttacking) return;
+
+        if (currentGuessIndex < customWordlist.size()) {
+            String currentGuess = customWordlist.get(currentGuessIndex);
+            tvCurrentGuess.setText("التجربة الحالية: " + currentGuess);
+
+            // تأخير زمني ثانية بين كل محاولة وأخرى
+            tvCurrentGuess.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    currentGuessIndex++;
+                    runNextGuess();
+                }
+            }, 1000);
+
+        } else {
+            tvStatus.setText("انتهت قائمة التخمينات بالكامل");
+            tvCurrentGuess.setText("التجربة: انتهى");
             btnStartAttack.setEnabled(true);
             isAttacking = false;
-            return;
         }
-
-        String guess = customWordlist.get(currentGuessIndex);
-        tvCurrentGuess.setText("جاري تجربة: " + guess);
-        tvStatus.setText("الشبكة المستهدفة: " + selectedTargetSSID + " (" + (currentGuessIndex + 1) + "/" + customWordlist.size() + ")");
-
-        // محاكاة تأخير زمني بسيط لكل محاولة (ثانية واحدة لتتمكن من رؤية العرض على الشاشة)
-        handler.postDelayed(() -> {
-            currentGuessIndex++;
-            startGuessingLoop(); // الانتقال للتخمين التالي تلقائياً
-        }, 1000);
     }
 }
