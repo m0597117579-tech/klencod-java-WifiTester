@@ -1,6 +1,7 @@
 package com.flutteride.codweva;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -11,7 +12,6 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
-import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -19,14 +19,10 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends Activity {
 
     private WifiManager wifiManager;
     private ListView listView;
@@ -47,7 +43,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // بناء الواجهة برمجياً لتجنب أخطاء ملفات XML
         LinearLayout mainLayout = new LinearLayout(this);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
         mainLayout.setPadding(30, 30, 30, 30);
@@ -108,43 +103,27 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupWordlist() {
         customWordlist = new ArrayList<>();
-        customWordlist.add("10001000");
-        customWordlist.add("20002000");
-        customWordlist.add("30003000");
-        customWordlist.add("40004000");
-        customWordlist.add("50005000");
-        customWordlist.add("60006000");
-        customWordlist.add("70007000");
-        customWordlist.add("80008000");
-        customWordlist.add("90009000");
-        customWordlist.add("90008000");
-        customWordlist.add("80007000");
-        customWordlist.add("70006000");
-        customWordlist.add("60005000");
-        customWordlist.add("50004000");
-        customWordlist.add("40003000");
-        customWordlist.add("30002000");
-        customWordlist.add("20001000");
-        customWordlist.add("10003000");
-        customWordlist.add("20004000");
-        customWordlist.add("30005000");
-        customWordlist.add("40006000");
-        customWordlist.add("50007000");
-        customWordlist.add("60008000");
-        customWordlist.add("70009000");
-        customWordlist.add("90007000");
-        customWordlist.add("80006000");
-        customWordlist.add("70005000");
-        customWordlist.add("60004000");
-        customWordlist.add("50003000");
-        customWordlist.add("40002000");
-        customWordlist.add("30001000");
-        customWordlist.add("100200300");
+        customWordlist.add("10001000"); customWordlist.add("20002000");
+        customWordlist.add("30003000"); customWordlist.add("40004000");
+        customWordlist.add("50005000"); customWordlist.add("60006000");
+        customWordlist.add("70007000"); customWordlist.add("80008000");
+        customWordlist.add("90009000"); customWordlist.add("90008000");
+        customWordlist.add("80007000"); customWordlist.add("70006000");
+        customWordlist.add("60005000"); customWordlist.add("50004000");
+        customWordlist.add("40003000"); customWordlist.add("30002000");
+        customWordlist.add("20001000"); customWordlist.add("10003000");
+        customWordlist.add("20004000"); customWordlist.add("30005000");
+        customWordlist.add("40006000"); customWordlist.add("50007000");
+        customWordlist.add("60008000"); customWordlist.add("70009000");
+        customWordlist.add("90007000"); customWordlist.add("80006000");
+        customWordlist.add("70005000"); customWordlist.add("60004000");
+        customWordlist.add("50003000"); customWordlist.add("40002000");
+        customWordlist.add("30001000"); customWordlist.add("100200300");
     }
 
     private void checkPermissionsAndScan() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
         } else {
             scanWifiNetworks();
         }
@@ -164,7 +143,7 @@ public class MainActivity extends AppCompatActivity {
     private final BroadcastReceiver wifiScanReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context c, Intent intent) {
-            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 return;
             }
             scanResults = wifiManager.getScanResults();
@@ -177,9 +156,7 @@ public class MainActivity extends AppCompatActivity {
             adapter.notifyDataSetChanged();
             try {
                 unregisterReceiver(this);
-            } catch (Exception e) {
-                // تجاهل الخطأ في حال لم يكن مسجلاً
-            }
+            } catch (Exception e) {}
         }
     };
 
